@@ -1,0 +1,11 @@
+version: '3.8'
+services:
+  edr-brain:
+    build: .
+    container_name: devsecops_edr_server
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./data:/app/data
+    env_file:
+      - .env
