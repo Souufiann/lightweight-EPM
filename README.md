@@ -1,4 +1,4 @@
-# 🛡️ DevSecOps Endpoint Monitor (EDR/IPS)
+# 🛡️ LightWeight Endpoint Monitor
 
 Une solution légère de détection et de réponse aux menaces (EDR) et de prévention des intrusions (IPS) conçue pour les environnements Windows, intégrant des concepts DevSecOps et une architecture conteneurisée.
 
