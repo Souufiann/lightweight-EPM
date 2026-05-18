@@ -64,7 +64,6 @@ Le projet suit une architecture **Client-Serveur** moderne :
 
 Le dashboard web affiche une télémétrie en temps réel des événements réseau.
 
-[Image of real-time network traffic line chart with safe and malicious lines]
 
 * **Ligne Verte :** Connexions vérifiées ou sûres.
 * **Ligne Rouge :** Tentatives de connexion vers des IPs blacklistées ou suspectes.
