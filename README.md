@@ -2,7 +2,6 @@
 
 Une solution légère de détection et de réponse aux menaces (EDR) et de prévention des intrusions (IPS) conçue pour les environnements Windows, intégrant des concepts DevSecOps et une architecture conteneurisée.
 
-[Image of DevSecOps lifecycle and security integration]
 
 ## 🏗️ Architecture du Projet
 
@@ -11,7 +10,6 @@ Le projet suit une architecture **Client-Serveur** moderne :
 1.  **Serveur Central (Dockerized) :** Le "cerveau" de l'application. Il gère la base de données, interroge les APIs de Threat Intelligence et héberge le dashboard d'observabilité.
 2.  **Agent Endpoint (Windows Natif) :** Une sonde légère qui surveille les processus, vérifie les signatures numériques et applique les politiques de blocage (Firewall).
 
-[Image of client-server architecture diagram for network security]
 
 ---
 
