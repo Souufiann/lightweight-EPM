@@ -47,6 +47,50 @@ def verify_signature(exe_path):
         return is_signed
     except: return False
 
+def calculate_local_threat_score(process_name, exe_path, remote_port, is_signed):
+    """
+    Evaluates local process context to generate a heuristic threat score (0-100).
+    Acts as a lightweight edge-AI to catch anomalies before querying the server.
+    """
+    score = 0
+    reasons = []
+
+    # 1. Location Heuristics
+    exe_path_lower = str(exe_path).lower()
+    suspicious_paths = ['\\appdata\\', '\\temp\\', '\\downloads\\', '\\programdata\\']
+    
+    if any(susp_folder in exe_path_lower for susp_folder in suspicious_paths):
+        score += 30
+        reasons.append("Running from temp/user directory")
+
+    # 2. Signature Heuristics
+    if not is_signed:
+        score += 20
+        reasons.append("Unsigned binary")
+
+    # 3. Port/Protocol Heuristics
+    suspicious_ports = [4444, 6667, 1337, 4445, 9999]
+    standard_ports = [80, 443]
+    
+    if remote_port in suspicious_ports:
+        score += 40
+        reasons.append(f"Malicious port ({remote_port})")
+    elif remote_port not in standard_ports:
+        score += 10
+        reasons.append(f"Non-standard port ({remote_port})")
+
+    # 4. Living off the Land (LotL) Heuristics
+    lotl_bins = ['powershell.exe', 'cmd.exe', 'certutil.exe', 'mshta.exe', 'bitsadmin.exe']
+    
+    if process_name.lower() in lotl_bins and not is_signed:
+        score += 50
+        reasons.append("Impersonating system binary")
+    elif process_name.lower() in lotl_bins and remote_port not in standard_ports:
+        score += 35
+        reasons.append("System binary making unusual connection")
+
+    return min(score, 100), reasons
+
 def block_ip_firewall(ip):
     rule_name = f"EDR_BLOCK_{ip.replace('.', '_')}"
     cmd = f'New-NetFirewallRule -DisplayName "{rule_name}" -Direction Outbound -Action Block -RemoteAddress {ip}'
@@ -58,23 +102,31 @@ def block_ip_firewall(ip):
             messagebox.showerror("Error", f"Failed to block. Ensure Agent is running as Admin.\n{res.stderr}")
     except Exception as e: print(e)
 
-def handle_threat(ip, process_name, categories):
+def handle_threat(ip, process_name, categories, local_reasons):
     if ip in prompted_ips: return
     prompted_ips.add(ip)
+    
+    reason_str = ", ".join(local_reasons) if local_reasons else "Unknown behavior"
     
     try:
         notification.notify(
             title="🚨 EDR Threat Detected!",
-            message=f"App: {process_name}\nIP: {ip}\nThreats: {categories}",
+            message=f"App: {process_name}\nIP: {ip}\nHeuristics: {reason_str}",
             app_name="DevSecOps EDR", timeout=7
         )
     except: pass
 
-    msg = f"DANGEROUS CONNECTION DETECTED\n\nApp: {process_name}\nIP: {ip}\nThreats: {categories}\n\nBlock this IP in Windows Firewall?"
+    msg = (f"DANGEROUS CONNECTION DETECTED\n\n"
+           f"App: {process_name}\n"
+           f"IP: {ip}\n"
+           f"Cloud Threats: {categories}\n"
+           f"Local Heuristics: {reason_str}\n\n"
+           f"Block this IP in Windows Firewall?")
+           
     if messagebox.askyesno("Intrusion Prevention System (IPS)", msg, icon='warning'):
         block_ip_firewall(ip)
 
-print(f"Windows Agent Running. Sending telemetry to {SERVER_API_URL}...")
+print(f"Windows Edge-AI Agent Running. Telemetry target: {SERVER_API_URL}...")
 if not is_admin():
     print("WARNING: Not running as Administrator. IPS blocking will fail.")
 
@@ -84,16 +136,43 @@ while True:
             if conn.raddr and conn.status == 'ESTABLISHED' and conn.pid:
                 try:
                     proc = psutil.Process(conn.pid)
-                    if not is_whitelisted(conn.raddr.ip) and not verify_signature(proc.exe()):
-                        # Send to Docker Server
-                        payload = {"ip": conn.raddr.ip, "process": proc.name()}
+                    remote_ip = conn.raddr.ip
+                    remote_port = conn.raddr.port
+                    
+                    if is_whitelisted(remote_ip): continue
+                        
+                    exe_path = proc.exe()
+                    process_name = proc.name()
+                    is_signed = verify_signature(exe_path)
+                    
+                    # 1. Ask our lightweight local heuristic engine
+                    local_score, heuristic_reasons = calculate_local_threat_score(
+                        process_name, exe_path, remote_port, is_signed
+                    )
+                    
+                    # 2. Query Server only if context is suspicious or unsigned
+                    if local_score >= 30 or not is_signed:
+                        payload = {
+                            "ip": remote_ip, 
+                            "process": process_name,
+                            "local_risk_score": local_score,
+                            "heuristics": ", ".join(heuristic_reasons)
+                        }
+                        
                         res = requests.post(SERVER_API_URL, json=payload, timeout=3)
+                        
                         if res.status_code == 200:
                             data = res.json()
-                            if data.get('status') == 'DANGEROUS':
-                                handle_threat(data['ip'], proc.name(), data.get('categories', 'Unknown'))
-                except: pass
+                            cloud_status = data.get('status')
+                            cloud_categories = data.get('categories', 'Unknown')
+                            
+                            # Trigger if Cloud says dangerous OR Local heuristic score is extremely high
+                            if cloud_status == 'DANGEROUS' or local_score >= 70:
+                                handle_threat(remote_ip, process_name, cloud_categories, heuristic_reasons)
+                                
+                except (psutil.NoSuchProcess, psutil.AccessDenied): pass
+                
         time.sleep(CHECK_INTERVAL_SECONDS)
-        root.update() # Keep tkinter event loop alive for messageboxes
+        root.update() # Keep tkinter event loop alive
     except Exception as e:
         time.sleep(5)
