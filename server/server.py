@@ -51,7 +51,8 @@ def check_abuseipdb(ip):
             cat_strings = [ABUSE_CATEGORIES.get(c, "Unknown") for c in categories]
             final_cats = ", ".join(cat_strings) if cat_strings else "None"
             return score, final_cats
-    except Exception as e: print(f"API Error: {e}")
+    except Exception as e: 
+        print(f"API Error: {e}")
     return 0, "None"
 
 @app.route('/api/evaluate', methods=['POST'])
@@ -105,6 +106,23 @@ def graph_data():
         "threats": [row[2] for row in rows]
     })
 
+@app.route('/api/recent-events')
+def recent_events():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    # Fetch the 20 most recent logs
+    c.execute("SELECT timestamp, process, ip, score, status, categories FROM event_log ORDER BY id DESC LIMIT 20")
+    rows = c.fetchall()
+    conn.close()
+    
+    events = []
+    for r in rows:
+        events.append({
+            "timestamp": r[0], "process": r[1], "ip": r[2], 
+            "score": r[3], "status": r[4], "categories": r[5]
+        })
+    return jsonify(events)
+
 HTML_DASHBOARD = """
 <!DOCTYPE html>
 <html>
@@ -112,17 +130,44 @@ HTML_DASHBOARD = """
     <title>DevSecOps EDR Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { font-family: Arial; background-color: #f4f7f6; padding: 20px; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; padding: 20px; color: #333; }
         .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px;}
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background-color: #f8f9fa; font-weight: bold; }
+        .status-SAFE { color: #2ecc71; font-weight: bold; }
+        .status-SUSPICIOUS { color: #f39c12; font-weight: bold; }
+        .status-DANGEROUS { color: #e74c3c; font-weight: bold; }
     </style>
 </head>
 <body>
-    <h2>Endpoint Network Telemetry</h2>
+    <h2>🛡️ Endpoint Network Telemetry</h2>
+    
     <div class="card">
         <h3>Live Connections (Last 30 Minutes)</h3>
-        <canvas id="telemetryChart" style="max-height: 400px;"></canvas>
+        <canvas id="telemetryChart" style="max-height: 300px;"></canvas>
     </div>
+
+    <div class="card">
+        <h3>Recent Threat Intelligence Logs</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>Process</th>
+                    <th>Remote IP</th>
+                    <th>Threat Score</th>
+                    <th>Status</th>
+                    <th>Categories</th>
+                </tr>
+            </thead>
+            <tbody id="logTableBody">
+                </tbody>
+        </table>
+    </div>
+
     <script>
+        // --- Graph Logic ---
         const ctx = document.getElementById('telemetryChart').getContext('2d');
         const telemetryChart = new Chart(ctx, {
             type: 'line',
@@ -132,24 +177,47 @@ HTML_DASHBOARD = """
             ]},
             options: { responsive: true, animation: false, scales: { y: { beginAtZero: true, suggestedMax: 10 } } }
         });
-        async function updateGraph() {
+
+        async function updateDashboard() {
             try {
-                const res = await fetch('/api/graph-data');
-                const data = await res.json();
-                telemetryChart.data.labels = data.labels;
-                telemetryChart.data.datasets[0].data = data.safe;
-                telemetryChart.data.datasets[1].data = data.threats;
+                // Update Graph
+                const graphRes = await fetch('/api/graph-data');
+                const graphData = await graphRes.json();
+                telemetryChart.data.labels = graphData.labels;
+                telemetryChart.data.datasets[0].data = graphData.safe;
+                telemetryChart.data.datasets[1].data = graphData.threats;
                 telemetryChart.update();
-            } catch (err) { console.error(err); }
+
+                // Update Table
+                const tableRes = await fetch('/api/recent-events');
+                const tableData = await tableRes.json();
+                const tbody = document.getElementById('logTableBody');
+                tbody.innerHTML = ''; // Clear old rows
+                
+                tableData.forEach(event => {
+                    const row = `<tr>
+                        <td>${event.timestamp}</td>
+                        <td><strong>${event.process}</strong></td>
+                        <td>${event.ip}</td>
+                        <td>${event.score}/100</td>
+                        <td class="status-${event.status}">${event.status}</td>
+                        <td><small>${event.categories}</small></td>
+                    </tr>`;
+                    tbody.innerHTML += row;
+                });
+            } catch (err) { console.error("Error fetching dashboard data:", err); }
         }
-        updateGraph(); setInterval(updateGraph, 5000);
+        
+        updateDashboard(); 
+        setInterval(updateDashboard, 5000); // Refresh both every 5 seconds
     </script>
 </body>
 </html>
 """
 
 @app.route('/')
-def dashboard(): return render_template_string(HTML_DASHBOARD)
+def dashboard(): 
+    return render_template_string(HTML_DASHBOARD)
 
 if __name__ == '__main__':
     init_db()
