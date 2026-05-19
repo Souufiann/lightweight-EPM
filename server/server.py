@@ -90,16 +90,21 @@ def evaluate_ip():
 def graph_data():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    query = f"""
+    
+    # FIX: Calculate the 30-minute window in Python to avoid Docker/SQLite timezone bugs
+    time_limit = (datetime.now() - timedelta(minutes=30)).strftime("%Y-%m-%d %H:%M:%S")
+    
+    query = """
         SELECT strftime('%H:%M', timestamp) as time_min,
-               SUM(CASE WHEN score < {THREAT_THRESHOLD} THEN 1 ELSE 0 END) as safe_count,
-               SUM(CASE WHEN score >= {THREAT_THRESHOLD} THEN 1 ELSE 0 END) as threat_count
-        FROM event_log WHERE timestamp >= datetime('now', '-30 minutes')
+               SUM(CASE WHEN score < ? THEN 1 ELSE 0 END) as safe_count,
+               SUM(CASE WHEN score >= ? THEN 1 ELSE 0 END) as threat_count
+        FROM event_log WHERE timestamp >= ?
         GROUP BY time_min ORDER BY time_min ASC
     """
-    c.execute(query)
+    c.execute(query, (THREAT_THRESHOLD, THREAT_THRESHOLD, time_limit))
     rows = c.fetchall()
     conn.close()
+    
     return jsonify({
         "labels": [row[0] for row in rows],
         "safe": [row[1] for row in rows],
