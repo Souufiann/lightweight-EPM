@@ -9,6 +9,7 @@ load_dotenv()
 app = Flask(__name__)
 
 API_KEY = os.getenv('ABUSEIPDB_API_KEY', 'MISSING_KEY')
+AGENT_SECRET = os.getenv('AGENT_SECRET_KEY', 'default_secret_123')
 THREAT_THRESHOLD = int(os.getenv('THREAT_THRESHOLD', 20))
 CACHE_EXPIRY_DAYS = int(os.getenv('CACHE_EXPIRY_DAYS', 1))
 DB_PATH = '/app/data/threat_cache.db'
@@ -31,6 +32,8 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS event_log
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp DATETIME, 
                   ip TEXT, process TEXT, score INTEGER, status TEXT, categories TEXT)''')
+    # OPTIMIZATION: Index the timestamp column for lightning-fast dashboard queries
+    c.execute('CREATE INDEX IF NOT EXISTS idx_timestamp ON event_log(timestamp)')
     conn.commit()
     conn.close()
 
@@ -57,6 +60,11 @@ def check_abuseipdb(ip):
 
 @app.route('/api/evaluate', methods=['POST'])
 def evaluate_ip():
+    # OPTIMIZATION: Reject requests that don't have the secret key
+    auth_header = request.headers.get('Authorization')
+    if auth_header != f"Bearer {AGENT_SECRET}":
+        return jsonify({"error": "Unauthorized Agent"}), 401
+
     data = request.json
     ip = data.get('ip')
     process_name = data.get('process')
@@ -83,15 +91,13 @@ def evaluate_ip():
     conn.commit()
     conn.close()
     
-    print(f"[{status}] App '{process_name}' -> {ip} (Score: {score})")
     return jsonify({"ip": ip, "score": score, "status": status, "categories": categories})
 
 @app.route('/api/graph-data')
 def graph_data():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    
-    # FIX: Calculate the 30-minute window in Python to avoid Docker/SQLite timezone bugs
+    # OPTIMIZATION: Python-side datetime limits timezone bugs
     time_limit = (datetime.now() - timedelta(minutes=30)).strftime("%Y-%m-%d %H:%M:%S")
     
     query = """
@@ -115,17 +121,11 @@ def graph_data():
 def recent_events():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    # Fetch the 20 most recent logs
     c.execute("SELECT timestamp, process, ip, score, status, categories FROM event_log ORDER BY id DESC LIMIT 20")
     rows = c.fetchall()
     conn.close()
     
-    events = []
-    for r in rows:
-        events.append({
-            "timestamp": r[0], "process": r[1], "ip": r[2], 
-            "score": r[3], "status": r[4], "categories": r[5]
-        })
+    events = [{"timestamp": r[0], "process": r[1], "ip": r[2], "score": r[3], "status": r[4], "categories": r[5]} for r in rows]
     return jsonify(events)
 
 HTML_DASHBOARD = """
@@ -166,13 +166,11 @@ HTML_DASHBOARD = """
                     <th>Categories</th>
                 </tr>
             </thead>
-            <tbody id="logTableBody">
-                </tbody>
+            <tbody id="logTableBody"></tbody>
         </table>
     </div>
 
     <script>
-        // --- Graph Logic ---
         const ctx = document.getElementById('telemetryChart').getContext('2d');
         const telemetryChart = new Chart(ctx, {
             type: 'line',
@@ -185,7 +183,6 @@ HTML_DASHBOARD = """
 
         async function updateDashboard() {
             try {
-                // Update Graph
                 const graphRes = await fetch('/api/graph-data');
                 const graphData = await graphRes.json();
                 telemetryChart.data.labels = graphData.labels;
@@ -193,11 +190,10 @@ HTML_DASHBOARD = """
                 telemetryChart.data.datasets[1].data = graphData.threats;
                 telemetryChart.update();
 
-                // Update Table
                 const tableRes = await fetch('/api/recent-events');
                 const tableData = await tableRes.json();
                 const tbody = document.getElementById('logTableBody');
-                tbody.innerHTML = ''; // Clear old rows
+                tbody.innerHTML = ''; 
                 
                 tableData.forEach(event => {
                     const row = `<tr>
@@ -214,7 +210,7 @@ HTML_DASHBOARD = """
         }
         
         updateDashboard(); 
-        setInterval(updateDashboard, 5000); // Refresh both every 5 seconds
+        setInterval(updateDashboard, 5000);
     </script>
 </body>
 </html>
