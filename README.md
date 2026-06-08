@@ -1,83 +1,43 @@
-# 🛡️ LightWeight Endpoint Monitor
+# 🛡️ DevSecOps Enterprise EDR & Network Telemetry System
 
-Une solution légère de détection et de réponse aux menaces (EDR) et de prévention des intrusions (IPS) conçue pour les environnements Windows, intégrant des concepts DevSecOps et une architecture conteneurisée.
+An enterprise-ready, high-performance hybrid Host-based Intrusion Detection and Prevention System (HIDS/IPS). This platform applies modern DevSecOps principles by isolating resource-heavy analytical tasks into a containerized cluster while maintaining an agile, low-overhead native security agent on the protected endpoint.
 
-
-## 🏗️ Architecture du Projet
-
-Le projet suit une architecture **Client-Serveur** moderne :
-
-1.  **Serveur Central (Dockerized) :** Le "cerveau" de l'application. Il gère la base de données, interroge les APIs de Threat Intelligence et héberge le dashboard d'observabilité.
-2.  **Agent Endpoint (Windows Natif) :** Une sonde légère qui surveille les processus, vérifie les signatures numériques et applique les politiques de blocage (Firewall).
-
+The architecture combines **local edge heuristics** (Expert-System Engine) for rapid pre-filtering, **cryptographic process verification**, and a **centralized microservices server** offering real-time telemetry streaming, aggregated persistence caching, and deep threat observability.
 
 ---
 
-## ✨ Fonctionnalités Clés
+## ✨ System Features & Performance Engineering
 
-* **Surveillance Réseau en Temps Réel :** Capture les connexions entrantes et sortantes liées aux processus locaux.
-* **Vérification de Signature (Authenticode) :** Analyse via PowerShell pour ignorer les binaires de confiance (Microsoft, Google, etc.).
-* **Intelligence sur les Menaces :** Intégration avec l'API **AbuseIPDB** pour catégoriser les menaces (Phishing, Malware, DDoS).
-* **IPS Actif (Système de Prévention) :** Notifications Windows natives et blocage en un clic via le Pare-feu Windows.
-* **Observabilité DevSecOps :** Graphiques linéaires en temps réel (Chart.js) visualisant le trafic sain vs suspect.
-* **Conteneurisation :** Déploiement simplifié du backend via Docker et Docker Compose.
-
----
-
-## 🚀 Installation et Déploiement
-
-### 1. Déploiement du Serveur (Backend)
-**Prérequis :** Docker & Docker Compose.
-
-1.  Accédez au dossier `server/`.
-2.  Créez un fichier `.env` :
-    ```env
-    ABUSEIPDB_API_KEY=votre_cle_api
-    THREAT_THRESHOLD=20
-    ```
-3.  Lancez le service :
-    ```bash
-    docker-compose up --build -d
-    ```
-4.  Dashboard accessible sur : `http://localhost:5000`
-
-### 2. Installation de l'Agent (Windows)
-**Prérequis :** Python 3.10+, Droits Administrateur.
-
-1.  Accédez au dossier `agent/`.
-2.  Installez les dépendances :
-    ```bash
-    pip install psutil requests python-dotenv plyer
-    ```
-3.  Configurez l'URL du serveur dans le `.env` de l'agent :
-    ```env
-    SERVER_API_URL=http://<IP_DU_SERVEUR>:5000/api/evaluate
-    ```
-4.  Lancez l'agent (en tant qu'Administrateur) :
-    ```bash
-    python agent.py
-    ```
+* **Containerized Decoupled Backend:** Built on an asynchronous Python/Flask engine running within a sandboxed container deployment (`Docker` and `Docker Compose`). Instantly scalable and fully OS-agnostic.
+* **Edge-AI Heuristic Scoring:** The client agent dynamically evaluates executable behaviors locally based on multi-vector risks (directory execution paths, unstandardized communication ports, binary digital trust status, and Living-off-the-Land impersonation metrics).
+* **Zero-Trust Communication:** Telemetry pipelines are strictly locked down using cryptographic Bearer Token validation headers (`AGENT_SECRET_KEY`) to prevent adversarial log injection or telemetry spoofing.
+* **Stateful Signature Caching:** Reduces high-overhead native subshell calls by tracking approved Authenticode footprints locally via a persistent, on-disk registry (`signature_cache.json`). Validations seamlessly survive endpoint reboots.
+* **Indexed Logging Layer:** Employs an optimized structural index on the storage database timestamp layers. Graph aggregation pipelines run consistently at fast lookup speeds rather than scaling linearly as log history builds up.
+* **Active Intrusion Prevention:** Interfaces directly with low-level kernel space monitoring and invokes dynamic PowerShell command chains to configure immediate, 1-click **Windows Defender Firewall Outbound Blocking Rules** when anomalies hit threshold critical metrics.
+* **Observability Matrix:** Displays real-time streaming line charts via `Chart.js` tracking Safe vs. Dangerous connection vectors across the network alongside a live data feed of active incident logs.
 
 ---
 
-## 📊 Dashboard d'Observabilité
+## 🏗️ Architecture Design Spec
 
-Le dashboard web affiche une télémétrie en temps réel des événements réseau.
+### 1. Central Management Core (The Dockerized Server)
+* Orchestrates global intelligence routing and incoming payload parsing.
+* Manages `threat_cache.db` (SQLite3 with active indexing) to isolate storage layers away from unprivileged host environments.
+* Proxies downstream external connections to third-party Cloud Threat Intelligence Providers (AbuseIPDB V2 REST API), caching malicious IP scores globally to stay within tight rate limits.
 
-
-* **Ligne Verte :** Connexions vérifiées ou sûres.
-* **Ligne Rouge :** Tentatives de connexion vers des IPs blacklistées ou suspectes.
-
----
-
-## 🛠️ Concepts DevOps Appliqués
-
-* **Infrastructure as Code (IaC) :** Déploiement reproductible via Docker.
-* **Observabilité :** Monitoring continu et visualisation des données de sécurité.
-* **Sécurité à Gauche (Shift Left) :** Automatisation de la vérification des signatures dès l'exécution.
-* **Configuration Externalisée :** Gestion via variables d'environnement (`.env`).
+### 2. Monitoring Probe (The Windows Native Agent)
+* Executes via low-overhead system mapping libraries (`psutil`) tracking live connection bindings.
+* Executes isolated system subshells silently via background creation flags (`0x08000000`) to query binary digital security states.
+* Invokes responsive, thread-safe local graphical interfaces (`tkinter`) and push alert systems (`plyer`) to minimize latency during critical remediation windows.
 
 ---
 
-## ⚖️ Licence et Sécurité
-Ce projet est destiné à un usage éducatif et de recherche en cybersécurité. L'automatisation du pare-feu comporte des risques ; utilisez-le avec prudence dans des environnements de production.
+## 🚀 Quick Deployment Blueprint
+
+### Part 1: Central Server Infrastructure (DevOps Deployment)
+
+**Prerequisites:** Docker and Docker Compose configured on your deployment platform (Ubuntu/Debian server recommended, though macOS/Windows hosts are completely supported).
+
+1. Clone or copy the deployment directory onto the machine:
+   ```bash
+   cd server/
