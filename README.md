@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 # 🛡️ DevSecOps Enterprise EDR & Network Telemetry System
+=======
+# 🛡️HEMIPS (Hybrid Endpoint Monitoring & Intrusion Prevention System)
+>>>>>>> d22ead7570c84674497c22adfc04e35328602e3e
 
 An enterprise-ready, high-performance hybrid Host-based Intrusion Detection and Prevention System (HIDS/IPS). This platform applies modern DevSecOps principles by isolating resource-heavy analytical tasks into a containerized cluster while maintaining an agile, low-overhead native security agent on the protected endpoint.
 
