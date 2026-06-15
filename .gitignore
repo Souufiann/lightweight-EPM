@@ -1,4 +1,4 @@
 .env
 .venv
 threat_cache.db
---app.py
+signature_cache.json
