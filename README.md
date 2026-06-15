@@ -1,4 +1,4 @@
-# 🛡️ SentinelEdge EDR & Active IPS
+# 🛡️ HEMIPSystem (Hybrid Endpoint Monitoring & Intrusion Prevention System)
 
 An enterprise-ready, high-performance hybrid Host-based Intrusion Detection and Prevention System (HIDS/IPS). SentinelEdge embraces DevSecOps principles by separating the resource-heavy threat intelligence core (fully containerized via Docker) from the low-overhead endpoint monitoring agent (Native Windows executable environment).
 
